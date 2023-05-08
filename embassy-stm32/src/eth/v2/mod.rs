@@ -18,7 +18,7 @@ pub struct Ethernet<'d, T: Instance, P: PHY> {
     _peri: PeripheralRef<'d, T>,
     pub(crate) tx: TDesRing<'d>,
     pub(crate) rx: RDesRing<'d>,
-    pins: [PeripheralRef<'d, AnyPin>; 9],
+    pins: [PeripheralRef<'d, AnyPin>; 14],
     _phy: P,
     clock_range: u8,
     phy_addr: u8,
@@ -42,20 +42,25 @@ impl<'d, T: Instance, P: PHY> Ethernet<'d, T, P> {
         queue: &'d mut PacketQueue<TX, RX>,
         peri: impl Peripheral<P = T> + 'd,
         interrupt: impl Peripheral<P = crate::interrupt::ETH> + 'd,
-        ref_clk: impl Peripheral<P = impl RefClkPin<T>> + 'd,
+        rx_clk: impl Peripheral<P = impl RXClkPin<T>> + 'd,
+        tx_clk: impl Peripheral<P = impl TXClkPin<T>> + 'd,
         mdio: impl Peripheral<P = impl MDIOPin<T>> + 'd,
         mdc: impl Peripheral<P = impl MDCPin<T>> + 'd,
-        crs: impl Peripheral<P = impl CRSPin<T>> + 'd,
+        rxdv: impl Peripheral<P = impl RXDVPin<T>> + 'd,
         rx_d0: impl Peripheral<P = impl RXD0Pin<T>> + 'd,
         rx_d1: impl Peripheral<P = impl RXD1Pin<T>> + 'd,
+        rx_d2: impl Peripheral<P = impl RXD2Pin<T>> + 'd,
+        rx_d3: impl Peripheral<P = impl RXD3Pin<T>> + 'd,
         tx_d0: impl Peripheral<P = impl TXD0Pin<T>> + 'd,
         tx_d1: impl Peripheral<P = impl TXD1Pin<T>> + 'd,
+        tx_d2: impl Peripheral<P = impl TXD2Pin<T>> + 'd,
+        tx_d3: impl Peripheral<P = impl TXD3Pin<T>> + 'd,
         tx_en: impl Peripheral<P = impl TXEnPin<T>> + 'd,
         phy: P,
         mac_addr: [u8; 6],
         phy_addr: u8,
     ) -> Self {
-        into_ref!(peri, interrupt, ref_clk, mdio, mdc, crs, rx_d0, rx_d1, tx_d0, tx_d1, tx_en);
+        into_ref!(peri, interrupt, rx_clk, tx_clk, mdio, mdc, rxdv, rx_d0, rx_d1, rx_d2, rx_d3, tx_d0, tx_d1, tx_d2, tx_d3, tx_en);
 
         unsafe {
             // Enable the necessary Clocks
@@ -70,7 +75,9 @@ impl<'d, T: Instance, P: PHY> Ethernet<'d, T, P> {
                 });
 
                 // RMII
-                crate::pac::SYSCFG.pmcr().modify(|w| w.set_epis(0b100));
+                // crate::pac::SYSCFG.pmcr().modify(|w| w.set_epis(0b100));
+                // MII
+                crate::pac::SYSCFG.pmcr().modify(|w| w.set_epis(0b000));
             });
 
             #[cfg(rcc_h5)]
@@ -89,7 +96,7 @@ impl<'d, T: Instance, P: PHY> Ethernet<'d, T, P> {
                     .modify(|w| w.set_eth_sel_phy(crate::pac::sbs::vals::EthSelPhy::B_0X4));
             });
 
-            config_pins!(ref_clk, mdio, mdc, crs, rx_d0, rx_d1, tx_d0, tx_d1, tx_en);
+            config_pins!(rx_clk, tx_clk, mdio, mdc, rxdv, rx_d0, rx_d1, rx_d2, rx_d3, tx_d0, tx_d1, tx_d2, tx_d3, tx_en);
 
             // NOTE(unsafe) We have exclusive access to the registers
             let dma = ETH.ethernet_dma();
@@ -168,14 +175,19 @@ impl<'d, T: Instance, P: PHY> Ethernet<'d, T, P> {
             };
 
             let pins = [
-                ref_clk.map_into(),
+                rx_clk.map_into(),
+                tx_clk.map_into(),
                 mdio.map_into(),
                 mdc.map_into(),
-                crs.map_into(),
+                rxdv.map_into(),
                 rx_d0.map_into(),
                 rx_d1.map_into(),
+                rx_d2.map_into(),
+                rx_d3.map_into(),
                 tx_d0.map_into(),
                 tx_d1.map_into(),
+                tx_d2.map_into(),
+                tx_d3.map_into(),
                 tx_en.map_into(),
             ];
 
